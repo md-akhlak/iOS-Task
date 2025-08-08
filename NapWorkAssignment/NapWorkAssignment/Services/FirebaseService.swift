@@ -84,21 +84,53 @@ class FirebaseService {
     // MARK: - Fetch Images
     func fetchImages(completion: @escaping (Result<[ImageModel], Error>) -> Void) {
         db.collection("images")
-        .order(by: "timestamp", descending: false)  // Changed to false for ascending order
-        .addSnapshotListener { snapshot, error in
-            if let error = error {
-                completion(.failure(error))
-                return
+            .order(by: "timestamp", descending: true)
+            .getDocuments { [weak self] snapshot, error in
+                if let error = error {
+                    completion(.failure(error))
+                    return
+                }
+                
+                guard let documents = snapshot?.documents else {
+                    completion(.success([]))
+                    return
+                }
+                
+                let dispatchGroup = DispatchGroup()
+                var validImages: [ImageModel] = []
+                
+                for document in documents {
+                    guard let imageModel = try? document.data(as: ImageModel.self) else { continue }
+                    
+                    dispatchGroup.enter()
+                    // Verify if the image exists in Storage
+                    self?.verifyImageExists(imageURL: imageModel.imageURL) { exists in
+                        if exists {
+                            validImages.append(imageModel)
+                        }
+                        dispatchGroup.leave()
+                    }
+                }
+                
+                dispatchGroup.notify(queue: .main) {
+                    completion(.success(validImages))
+                }
             }
-            guard let documents = snapshot?.documents else {
-                completion(.success([]))
-                return
-            }
-            let images: [ImageModel] = documents.compactMap { document in
-                try? document.data(as: ImageModel.self)
-            }
-            
-            completion(.success(images))
+    }
+    
+    private func verifyImageExists(imageURL: String, completion: @escaping (Bool) -> Void) {
+        guard let url = URL(string: imageURL) else {
+            completion(false)
+            return
         }
+        
+        let task = URLSession.shared.dataTask(with: url) { _, response, _ in
+            if let httpResponse = response as? HTTPURLResponse {
+                completion(httpResponse.statusCode == 200)
+            } else {
+                completion(false)
+            }
+        }
+        task.resume()
     }
 }

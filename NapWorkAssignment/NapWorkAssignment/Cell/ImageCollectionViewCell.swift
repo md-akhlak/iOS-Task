@@ -14,20 +14,34 @@ class ImageCollectionViewCell: UICollectionViewCell {
     @IBOutlet private weak var nameLabel: UILabel!
     private let activityIndicator = UIActivityIndicatorView(style: .medium)
     
+    private var currentImageURL: String?
+    private var imageLoadTask: URLSessionDataTask?
+    
     override func awakeFromNib() {
         super.awakeFromNib()
         setupUI()
     }
     
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        imageView.image = nil
+        nameLabel.text = nil
+        activityIndicator.stopAnimating()
+        imageLoadTask?.cancel()
+        imageLoadTask = nil
+        currentImageURL = nil
+    }
+    
     private func setupUI() {
-        backgroundColor = UIColor.systemBackground
-        layer.cornerRadius = 12
-        layer.shadowColor = UIColor.black.cgColor
-        layer.shadowOffset = CGSize(width: 0, height: 2)
-        layer.shadowRadius = 4
-        layer.shadowOpacity = 0.1
+        backgroundColor = .clear
+        contentView.backgroundColor = .clear
         
-        // Setup activity indicator if not already added
+        // Configure imageView
+        imageView.contentMode = .scaleAspectFill
+        imageView.clipsToBounds = true
+        imageView.backgroundColor = .clear
+        
+        // Setup activity indicator
         if activityIndicator.superview == nil {
             activityIndicator.translatesAutoresizingMaskIntoConstraints = false
             activityIndicator.hidesWhenStopped = true
@@ -38,36 +52,52 @@ class ImageCollectionViewCell: UICollectionViewCell {
                 activityIndicator.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
             ])
         }
-        
-        // Configure imageView
-        imageView.contentMode = .scaleAspectFill
-        imageView.clipsToBounds = true
     }
     
     func configure(with imageModel: ImageModel) {
         nameLabel.text = imageModel.referenceName
+        imageView.image = nil
+        currentImageURL = imageModel.imageURL
+        
         activityIndicator.startAnimating()
         
-        // Load image from URL
-        if let url = URL(string: imageModel.imageURL) {
-            URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+        // Check cache first
+        if let cachedImage = ImageCache.shared.getImage(forKey: imageModel.imageURL) {
+            imageView.image = cachedImage
+            activityIndicator.stopAnimating()
+            return
+        }
+        
+        // Load image
+        guard let url = URL(string: imageModel.imageURL) else {
+            activityIndicator.stopAnimating()
+            return
+        }
+        
+        imageLoadTask?.cancel()
+        
+        imageLoadTask = URLSession.shared.dataTask(with: url) { [weak self] data, response, error in
+            guard let self = self,
+                  self.currentImageURL == imageModel.imageURL,
+                  let data = data,
+                  let image = UIImage(data: data),
+                  error == nil else {
                 DispatchQueue.main.async {
                     self?.activityIndicator.stopAnimating()
-                    
-                    if let data = data, let image = UIImage(data: data) {
-                        self?.imageView.image = image
-                    } else {
-                        self?.imageView.image = UIImage(systemName: "photo")
-                    }
                 }
-            }.resume()
+                return
+            }
+            
+            ImageCache.shared.setImage(image, forKey: imageModel.imageURL)
+            
+            DispatchQueue.main.async {
+                if self.currentImageURL == imageModel.imageURL {
+                    self.imageView.image = image
+                    self.activityIndicator.stopAnimating()
+                }
+            }
         }
-    }
-    
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        imageView.image = nil
-        nameLabel.text = nil
-        activityIndicator.stopAnimating()
+        
+        imageLoadTask?.resume()
     }
 }

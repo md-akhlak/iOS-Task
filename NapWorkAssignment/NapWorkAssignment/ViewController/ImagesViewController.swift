@@ -21,6 +21,7 @@ class ImagesViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupCollectionView()
+        setupRefreshControl()
         fetchImages()
     }
     
@@ -43,6 +44,17 @@ class ImagesViewController: UIViewController {
         ])
     }
     
+    private func setupRefreshControl() {
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(refreshData), for: .valueChanged)
+        collectionView.refreshControl = refreshControl
+    }
+    
+    @objc private func refreshData() {
+        fetchImages()
+        collectionView.refreshControl?.endRefreshing()
+    }
+    
     private func fetchImages() {
         activityIndicator.startAnimating()
         
@@ -52,7 +64,8 @@ class ImagesViewController: UIViewController {
                 
                 switch result {
                 case .success(let images):
-                    self?.images = images
+                    // Reverse the images array to show newest at the bottom
+                    self?.images = images.reversed()
                     self?.collectionView.reloadData()
                 case .failure(let error):
                     self?.showAlert(title: "Error", message: error.localizedDescription)
