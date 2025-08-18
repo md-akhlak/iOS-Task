@@ -2,13 +2,14 @@
 //  ImageLoader.swift
 //  iOS Task
 //
-//  Created by ImageLoader on 15/08/25.
+//  Created by Cache on 15/08/25.
 //
 
 import Foundation
 import SwiftUI
 
-final class ImageLoader: ObservableObject {
+
+class Cache: ObservableObject {
     @Published var image: UIImage?
     @Published var isLoading: Bool = false
 
@@ -52,35 +53,4 @@ final class ImageLoader: ObservableObject {
         task?.cancel()
     }
 }
-
-struct ImageView: View {
-    let urlString: String
-
-    @StateObject private var loader = ImageLoader()
-
-    var body: some View {
-        ZStack {
-            if let ui = loader.image {
-                Image(uiImage: ui)
-                    .resizable()
-                    .scaledToFill()
-                    .frame(maxWidth: 180)
-                    .frame(height: 200)
-                    .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            } else {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.gray.opacity(0.12))
-                    .frame(height: 200)
-                    .overlay(ProgressView())
-            }
-        }
-        .onAppear {
-            if let url = URL(string: urlString) {
-                loader.load(from: url)
-            }
-        }
-    }
-}
-
 

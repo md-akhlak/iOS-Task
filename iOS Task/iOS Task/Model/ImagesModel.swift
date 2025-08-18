@@ -9,7 +9,7 @@ import Foundation
 
 struct ImageModel: Identifiable {
     let id: String
-    let url: String
-    let name: String
+    let imageURL: String
+    let referenceName: String
     let timestamp: Date
 }
